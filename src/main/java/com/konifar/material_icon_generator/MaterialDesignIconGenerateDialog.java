@@ -7,6 +7,7 @@ import com.intellij.openapi.ui.TextBrowseFolderListener;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.openapi.util.JDOMUtil;
+import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.sun.org.apache.xml.internal.serializer.OutputPropertiesFactory;
 import org.apache.commons.lang.StringUtils;
@@ -75,6 +76,8 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
     private static final String ERROR_SIZE_CHECK_EMPTY = "Please check icon size.";
     private static final String ERROR_RESOURCE_DIR_NOTHING_PREFIX = "Can not find resource dir: ";
     private static final String ERROR_CUSTOM_COLOR = "Can not parse custom color. Please provide color in hex format (#FFFFFF).";
+    private static final String OK_BUTTON_LABEL = "Generate";
+    private static final String CANCEL_BUTTON_LABEL = "Close";
 
     private static final String ICON_CONFIRM = "/icons/toggle/drawable-mdpi/ic_check_box_black_24dp.png";
     private static final String ICON_WARNING = "/icons/alert/drawable-mdpi/ic_error_black_24dp.png";
@@ -136,6 +139,9 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
         model.setIconAndFileName((String) comboBoxIcon.getSelectedItem());
         textFieldFileName.setText(model.getFileName());
         showIconPreview();
+
+        setOKButtonText(OK_BUTTON_LABEL);
+        setCancelButtonText(CANCEL_BUTTON_LABEL);
 
         init();
     }
@@ -344,6 +350,8 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
     }
 
     private void initDpComboBox() {
+        comboBoxDp.setSelectedIndex(1);         // 24dp
+
         comboBoxDp.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent event) {
@@ -369,9 +377,8 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
     private void initColorComboBox() {
         colorPaletteMap = new HashMap<String, String>();
 
-        Document doc;
         try {
-            doc = JDOMUtil.loadDocument(getClass().getResourceAsStream(COLOR_PALETTE_COMBOBOX_XML));
+            Document doc = JDOMUtil.loadDocument(getClass().getResourceAsStream(COLOR_PALETTE_COMBOBOX_XML));
 
             List<Element> elements = doc.getRootElement().getChildren();
             for (org.jdom.Element element : elements) {
@@ -385,18 +392,6 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
             e.printStackTrace();
         }
 
-        comboBoxColor.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                if (model != null) {
-                    model.setDisplayColorName((String) comboBoxColor.getSelectedItem());
-                    String value = colorPaletteMap.get(comboBoxColor.getSelectedItem());
-                    textFieldColorCode.setText(value);
-                    textFieldFileName.setText(model.getFileName());
-                }
-            }
-        });
-
         comboBoxColor.getAccessibleContext().addPropertyChangeListener(new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent event) {
                 if (AccessibleContext.ACCESSIBLE_STATE_PROPERTY.equals(event.getPropertyName())
@@ -405,6 +400,18 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
                     ComboPopup popup = (ComboPopup) comboBoxColor.getAccessibleContext().getAccessibleChild(0);
                     JList list = popup.getList();
                     comboBoxColor.setSelectedItem(String.valueOf(list.getSelectedValue()));
+                }
+            }
+        });
+
+        comboBoxColor.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (model != null) {
+                    model.setDisplayColorName((String) comboBoxColor.getSelectedItem());
+                    String value = colorPaletteMap.get(comboBoxColor.getSelectedItem());
+                    textFieldColorCode.setText(value);
+                    textFieldFileName.setText(model.getFileName());
                 }
             }
         });
@@ -457,9 +464,8 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
     }
 
     private void initIconComboBox() {
-        Document doc;
         try {
-            doc = JDOMUtil.loadDocument(getClass().getResourceAsStream(FILE_ICON_COMBOBOX_XML));
+            Document doc = JDOMUtil.loadDocument(getClass().getResourceAsStream(FILE_ICON_COMBOBOX_XML));
 
             List<Element> elements = doc.getRootElement().getChildren();
             for (org.jdom.Element element : elements) {
@@ -489,8 +495,6 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
     protected void doOKAction() {
         if (model == null) return;
 
-        if (!isConfirmed()) return;
-
         if (alreadyFileExists()) {
             final int option = JOptionPane.showConfirmDialog(panelMain,
                     "File already exists, overwrite this ?",
@@ -517,6 +521,8 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE,
                 new ImageIcon(getClass().getResource(ICON_DONE)));
+
+        LocalFileSystem.getInstance().refresh(true);
     }
 
     private void createIcons() {
@@ -575,9 +581,8 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
 
     private void changeColorAndSize(File destFile) {
         DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder docBuilder = null;
         try {
-            docBuilder = docFactory.newDocumentBuilder();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
             org.w3c.dom.Document doc = docBuilder.parse(destFile.getAbsolutePath());
 
             // Edit Size
@@ -613,11 +618,9 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
             e.printStackTrace();
         } catch (SAXException e) {
             e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (TransformerConfigurationException e) {
-            e.printStackTrace();
         } catch (TransformerException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -750,19 +753,5 @@ public class MaterialDesignIconGenerateDialog extends DialogWrapper {
         }
 
         return null;
-    }
-
-    public boolean isConfirmed() {
-        Object[] options = {"Yes", "No"};
-        int option = JOptionPane.showOptionDialog(panelMain,
-                "Are you sure you want to generate '" + model.getFileName() + "' ?",
-                "Confirmation",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE,
-                new ImageIcon(getClass().getResource(ICON_CONFIRM)),
-                options,
-                options[0]);
-
-        return option == JOptionPane.OK_OPTION;
     }
 }
